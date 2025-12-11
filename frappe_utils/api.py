@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import frappe
 from frappe.utils import cint
 import json
@@ -37,3 +36,33 @@ def get_product_filters(item_group=None):
 		"filters": filters,
 		"sub_categories": sub_categories
 	}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_stock(item_code, warehouse=None):
+	if "webshop" not in frappe.get_installed_apps():
+		return frappe._dict({"in_stock": 0, "stock_qty": 0.0, "is_stock_item": 0})
+
+	from webshop.webshop.utils.product import get_web_item_qty_in_stock
+	return get_web_item_qty_in_stock(item_code, "website_warehouse", warehouse)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_products_with_stock(query_args=None):
+	if "webshop" not in frappe.get_installed_apps():
+		return {"message": {"items": []}}
+
+	from webshop.webshop.api import get_product_filter_data
+	from webshop.webshop.utils.product import get_web_item_qty_in_stock
+	
+	data = get_product_filter_data(query_args)
+	
+	if not data or not data.get("items"):
+		return data
+
+	for item in data["items"]:
+		stock_data = get_web_item_qty_in_stock(item.item_code, "website_warehouse")
+		if stock_data:
+			item.update(stock_data)
+
+	return data
