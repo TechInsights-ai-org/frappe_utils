@@ -60,9 +60,43 @@ def get_products_with_stock(query_args=None):
 	if not data or not data.get("items"):
 		return data
 
+	item_codes = [item.item_code for item in data["items"]]
+	
+	# Batch query for active Work Orders
+	# Assuming "In Process" covers the requirement "Inporgress"
+	items_in_process = set()
+	if item_codes:
+		work_orders = frappe.db.get_all(
+			"Work Order",
+			filters={
+				"production_item": ["in", item_codes],
+				"status": "In Process",
+				"docstatus": 1 
+			},
+			fields=["production_item"],
+			distinct=True
+		)
+		items_in_process = {d.production_item for d in work_orders}
+
 	for item in data["items"]:
 		stock_data = get_web_item_qty_in_stock(item.item_code, "website_warehouse")
 		if stock_data:
 			item.update(stock_data)
+
+			# Determine Stock Status
+			actual_qty = stock_data.get("stock_qty", 0.0)
+			is_stock_item = stock_data.get("is_stock_item", 0)
+
+			stock_status = "Out of Stock"
+			
+			if not is_stock_item:
+				stock_status = "In Stock"
+			elif actual_qty > 0:
+				stock_status = "In Stock"
+			elif item.item_code in items_in_process:
+				stock_status = "In Process"
+			
+			item["total_quantity"] = actual_qty
+			item["stock_status"] = stock_status
 
 	return data
