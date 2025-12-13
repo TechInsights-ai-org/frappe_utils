@@ -148,23 +148,11 @@ app_license = "mit"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"frappe_utils.tasks.all"
-# 	],
-# 	"daily": [
-# 		"frappe_utils.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"frappe_utils.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"frappe_utils.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"frappe_utils.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"daily": [
+		"frappe_utils.tasks.daily_unpublish_job"
+	],
+}
 
 # Testing
 # -------

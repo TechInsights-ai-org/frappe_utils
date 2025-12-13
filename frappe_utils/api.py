@@ -63,21 +63,41 @@ def get_products_with_stock(query_args=None):
 	item_codes = [item.item_code for item in data["items"]]
 	
 	# Batch query for active Work Orders
-	# Assuming "In Process" covers the requirement "Inporgress"
+	# "active" = In Process (as per previous logic) or broad check if we want to match utils.py exactly
+	# For API performance, we stick to the Requirement: "In Process" status or similar. 
+	# Implementation Plan said: "API will always return items that have an active Work Order... even if discontinued."
+	# User cleared "active" = not Completed/Cancelled.
+	# So I should update the WO filter to match `utils.py` logic: status NOT IN ("Completed", "Cancelled")
+	
 	items_in_process = set()
+	discontinued_map = {}
+	
 	if item_codes:
+		# Work Orders
 		work_orders = frappe.db.get_all(
 			"Work Order",
 			filters={
 				"production_item": ["in", item_codes],
-				"status": "In Process",
-				"docstatus": 1 
+				"status": ["not in", ["Completed", "Cancelled"]], # Exclude inactive
+				"docstatus": ["in", [1, 0]] 
 			},
-			fields=["production_item"],
+			fields=["production_item", "status"],
 			distinct=True
 		)
 		items_in_process = {d.production_item for d in work_orders}
 
+		# Discontinued Status
+		# Fetch from Website Item. Assuming 1-to-1 mapping or we take the first one found.
+		# Note: get_product_filter_data items usually come from Website Item, so item_code is the link.
+		wi_data = frappe.db.get_all(
+			"Website Item",
+			filters={"item_code": ["in", item_codes]},
+			fields=["item_code", "discontinued"]
+		)
+		for d in wi_data:
+			discontinued_map[d.item_code] = d.discontinued
+
+	valid_items = []
 	for item in data["items"]:
 		stock_data = get_web_item_qty_in_stock(item.item_code, "website_warehouse")
 		if stock_data:
@@ -86,6 +106,13 @@ def get_products_with_stock(query_args=None):
 			# Determine Stock Status
 			actual_qty = stock_data.get("stock_qty", 0.0)
 			is_stock_item = stock_data.get("is_stock_item", 0)
+			is_discontinued = discontinued_map.get(item.item_code, 0)
+			has_active_wo = item.item_code in items_in_process
+
+			# API Guard: Visibility Check
+			# Logic: If Discontinued AND Stock <= 0 AND No Active WO -> Hide
+			if is_discontinued and actual_qty <= 0 and not has_active_wo:
+				continue
 
 			stock_status = "Out of Stock"
 			
@@ -93,10 +120,12 @@ def get_products_with_stock(query_args=None):
 				stock_status = "In Stock"
 			elif actual_qty > 0:
 				stock_status = "In Stock"
-			elif item.item_code in items_in_process:
+			elif has_active_wo:
 				stock_status = "In Process"
 			
 			item["total_quantity"] = actual_qty
 			item["stock_status"] = stock_status
+			valid_items.append(item)
 
+	data["items"] = valid_items
 	return data
