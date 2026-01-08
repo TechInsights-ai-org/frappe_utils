@@ -1,0 +1,56 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-07 23:24:23.683943",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "home_page_tab",
+  "section_setting",
+  "tab_2_tab"
+ ],
+ "fields": [
+  {
+   "fieldname": "home_page_tab",
+   "fieldtype": "Tab Break",
+   "label": "Home Page"
+  },
+  {
+   "fieldname": "section_setting",
+   "fieldtype": "Table",
+   "label": "Section Setting",
+   "options": "Home Page Section"
+  },
+  {
+   "fieldname": "tab_2_tab",
+   "fieldtype": "Tab Break",
+   "label": "Tab 2"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-01-07 23:31:48.087755",
+ "modified_by": "Administrator",
+ "module": "Website Customization",
+ "name": "Website Customization Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

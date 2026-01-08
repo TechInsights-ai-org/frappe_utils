@@ -48,7 +48,7 @@ def get_stock(item_code, warehouse=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_products_with_stock(query_args=None):
+def get_products_with_stock(query_args=None,home_page=0):
 	if "webshop" not in frappe.get_installed_apps():
 		return {"message": {"items": []}}
 
@@ -71,7 +71,8 @@ def get_products_with_stock(query_args=None):
 	
 	items_in_process = set()
 	discontinued_map = {}
-	
+	is_home_page = int(home_page)
+
 	if item_codes:
 		# Work Orders
 		work_orders = frappe.db.get_all(
@@ -86,16 +87,20 @@ def get_products_with_stock(query_args=None):
 		)
 		items_in_process = {d.production_item for d in work_orders}
 
-		# Discontinued Status
+		# Discontinued Status & Custom Fields
+		fields = ["item_code", "discontinued"]
+		if is_home_page:
+			fields.extend(["custom_section", "custom_section_order"])
+
 		# Fetch from Website Item. Assuming 1-to-1 mapping or we take the first one found.
 		# Note: get_product_filter_data items usually come from Website Item, so item_code is the link.
 		wi_data = frappe.db.get_all(
 			"Website Item",
 			filters={"item_code": ["in", item_codes]},
-			fields=["item_code", "discontinued"]
+			fields=fields
 		)
 		for d in wi_data:
-			discontinued_map[d.item_code] = d.discontinued
+			discontinued_map[d.item_code] = d
 
 	valid_items = []
 	for item in data["items"]:
@@ -104,9 +109,11 @@ def get_products_with_stock(query_args=None):
 			item.update(stock_data)
 
 			# Determine Stock Status
+			wi_item_data = discontinued_map.get(item.item_code, {})
+			
 			actual_qty = stock_data.get("stock_qty", 0.0)
 			is_stock_item = stock_data.get("is_stock_item", 0)
-			is_discontinued = discontinued_map.get(item.item_code, 0)
+			is_discontinued = wi_item_data.get("discontinued", 0)
 			has_active_wo = item.item_code in items_in_process
 
 			# API Guard: Visibility Check
@@ -123,6 +130,10 @@ def get_products_with_stock(query_args=None):
 			elif has_active_wo:
 				stock_status = "In Process"
 			
+			if is_home_page:
+				item["custom_section"] = wi_item_data.get("custom_section")
+				item["custom_section_order"] = wi_item_data.get("custom_section_order")
+
 			item["total_quantity"] = actual_qty
 			item["stock_status"] = stock_status
 			valid_items.append(item)
