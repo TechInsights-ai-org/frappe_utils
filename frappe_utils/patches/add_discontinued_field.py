@@ -1,6 +1,7 @@
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
+@frappe.whitelist()
 def execute():
 	if "webshop" not in frappe.get_installed_apps():
 		return
