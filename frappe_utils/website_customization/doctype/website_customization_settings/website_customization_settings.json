@@ -7,7 +7,13 @@
  "field_order": [
   "home_page_tab",
   "section_setting",
-  "tab_2_tab"
+  "shop_by_category_section",
+  "website_item_field",
+  "category",
+  "tab_2_tab",
+  "newsletteroffers_section",
+  "mail_enabled",
+  "email_group_name"
  ],
  "fields": [
   {
@@ -24,14 +30,47 @@
   {
    "fieldname": "tab_2_tab",
    "fieldtype": "Tab Break",
-   "label": "Tab 2"
+   "label": "Mail"
+  },
+  {
+   "fieldname": "shop_by_category_section",
+   "fieldtype": "Section Break",
+   "label": "Shop By Category"
+  },
+  {
+   "fieldname": "website_item_field",
+   "fieldtype": "Autocomplete",
+   "label": "website item field"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Table",
+   "label": "Category",
+   "options": "Shop By Category"
+  },
+  {
+   "fieldname": "newsletteroffers_section",
+   "fieldtype": "Section Break",
+   "label": "Newsletter/Offers"
+  },
+  {
+   "fieldname": "email_group_name",
+   "fieldtype": "Link",
+   "label": "Email Group Name",
+   "options": "Email Group"
+  },
+  {
+   "default": "0",
+   "fieldname": "mail_enabled",
+   "fieldtype": "Check",
+   "label": "Mail Enabled"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-07 23:31:48.087755",
+ "modified": "2026-01-11 14:23:48.394543",
  "modified_by": "Administrator",
  "module": "Website Customization",
  "name": "Website Customization Settings",

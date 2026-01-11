@@ -39,3 +39,25 @@ def get_products_by_section():
 		items.sort(key=lambda x: x.get("custom_section_order") or 0)
 
 	return result
+
+
+@frappe.whitelist(allow_guest=True)
+def get_shop_by_category():
+	
+	filter_field = frappe.get_doc("Website Customization Settings").website_item_field
+	
+	if not filter_field:
+		return {}
+
+	filter_filed = filter_field.split(" ")[0]
+	
+	query = """
+	SELECT display_name,value,thumbnail 
+	FROM `tabShop By Category` 
+	WHERE 
+	parent = 'Website Customization Settings'
+	ORDER BY `order` ASC
+	"""
+	data = frappe.db.sql(query, as_dict=True)
+	return {"shop_by_category": data,"filter_field":filter_filed}
+
