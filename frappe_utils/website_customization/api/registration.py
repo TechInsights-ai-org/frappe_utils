@@ -26,7 +26,6 @@ def register(businessName, contactName, email, phone, password, gst=None, accept
 				user.last_name = ""
 		
 		user.enabled = 1
-		user.send_welcome_email = 0
 		user.new_password = password
 		user.mobile_no = phone
 		user.user_type = "Website User"
@@ -82,3 +81,4 @@ def register(businessName, contactName, email, phone, password, gst=None, accept
 	except Exception as e:
 		frappe.log_error(f"Registration Error: {str(e)}")
 		return {"status": "error", "message": _("Registration failed. Please try again or contact support.")}
+
