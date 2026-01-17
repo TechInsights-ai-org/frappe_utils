@@ -26,7 +26,6 @@ def register(businessName, contactName, email, phone, password, gst=None, accept
 				user.last_name = ""
 		
 		user.enabled = 1
-		user.send_welcome_email = 0
 		user.new_password = password
 		user.mobile_no = phone
 		user.user_type = "Website User"
@@ -36,6 +35,9 @@ def register(businessName, contactName, email, phone, password, gst=None, accept
 		# Add Customer Role
 		if frappe.db.exists("Role", "Customer"):
 			user.add_roles("Customer")
+
+		if frappe.db.exists("Role", "Accounts User"):
+			user.add_roles("Accounts User")
 
 		# 2. Link to Customer
 		customer_name = frappe.db.get_value("Customer", {"email_id": email}, "name")
