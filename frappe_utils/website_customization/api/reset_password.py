@@ -26,14 +26,14 @@ def reset(identifier=None):
     )
 
     if not user:
-        return {"status": "fail", "message": _("No user found.")}
+        return {"status": "fail", "message":"No user found."}
 
     user = user[0]
 
     # ensure the email field exists before attempting reset
     email = user.get("email")
     if not email or not validate_email_address(email, True):
-        return {"status": "fail", "message": _("User has no valid email.")}
+        return {"status": "fail", "message": "User has no valid email."}
     try:
         reset_password(user=user["name"])
         return {
