@@ -260,6 +260,14 @@ def get_product_info(item_code):
 	# Add discount info if needed (placeholder)
 	item["discount_percent"] = 0
 
+	# Check if wished
+	item["wished"] = 0
+	if frappe.session.user and frappe.session.user != "Guest":
+		# Wishlist is stored in "Wishlist" doctype, with "Wishlist Item" as child table
+		# The parent of Wishlist Item is the user (name of Wishlist doc is usually the user)
+		if frappe.db.exists("Wishlist Item", {"parent": frappe.session.user, "item_code": real_item_code}):
+			item["wished"] = 1
+
 	return item
 
 @frappe.whitelist(allow_guest=True)
