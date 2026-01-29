@@ -427,7 +427,7 @@ def get_customer_addresses():
 		filters={
 			"is_your_company_address": 0
 		},
-		fields=["name", "address_title", "address_line1", "address_line2", "city", "state", "pincode", "country", "phone", "email_id", "is_primary_address", "is_shipping_address", "custom_citytown", "custom_stateprovince"],
+		fields=["name", "address_title", "address_line1", "address_line2", "city", "state", "pincode", "country", "phone", "email_id", "is_primary_address", "is_shipping_address"],
 		or_filters={
 			"name": ["in", [d.parent for d in frappe.get_all("Dynamic Link", filters={"link_doctype": "Customer", "link_name": customer, "parenttype": "Address"}, fields=["parent"])]]
 		}
