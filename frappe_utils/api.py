@@ -271,7 +271,7 @@ def get_product_info(item_code):
 	item["website_specifications"] = frappe.db.get_all(
 		"Item Website Specification",
 		filters={'parent': item_code},
-		fields=['idx','label','description']
+		fields=['idx','label','custom_value']
 	)
 	slideshow = item.slideshow
 	item['slideshow_list'] = []
