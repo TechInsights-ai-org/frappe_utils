@@ -184,7 +184,7 @@ def get_product_info(item_code):
 		item_code,
 		["name", "web_item_name", "item_name", "item_code", "website_image",
 		 "web_long_description", "short_description", "ranking",
-		 "on_backorder", "item_group", "route"],
+		 "on_backorder", "item_group", "route","slideshow"],
 		as_dict=True
 	)
 
@@ -267,6 +267,20 @@ def get_product_info(item_code):
 		# The parent of Wishlist Item is the user (name of Wishlist doc is usually the user)
 		if frappe.db.exists("Wishlist Item", {"parent": frappe.session.user, "item_code": real_item_code}):
 			item["wished"] = 1
+
+	item["website_specifications"] = frappe.db.get_all(
+		"Item Website Specification",
+		filters={'parent': item_code},
+		fields=['idx','label','custom_value']
+	)
+	slideshow = item.slideshow
+	item['slideshow_list'] = []
+	if slideshow:
+		item['slideshow_list']=frappe.db.get_all(
+			"Website Slideshow Item",
+			filters={'parent': slideshow},
+			fields=['idx', 'image', 'custom_render_video']
+		)
 
 	return item
 
