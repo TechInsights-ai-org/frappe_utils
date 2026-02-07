@@ -13,7 +13,9 @@
   "tab_2_tab",
   "newsletteroffers_section",
   "mail_enabled",
-  "email_group_name"
+  "email_group_name",
+  "whatsapp_section",
+  "community_link"
  ],
  "fields": [
   {
@@ -30,7 +32,7 @@
   {
    "fieldname": "tab_2_tab",
    "fieldtype": "Tab Break",
-   "label": "Mail"
+   "label": "Notification"
   },
   {
    "fieldname": "shop_by_category_section",
@@ -64,13 +66,23 @@
    "fieldname": "mail_enabled",
    "fieldtype": "Check",
    "label": "Mail Enabled"
+  },
+  {
+   "fieldname": "whatsapp_section",
+   "fieldtype": "Section Break",
+   "label": "Whatsapp"
+  },
+  {
+   "fieldname": "community_link",
+   "fieldtype": "Data",
+   "label": "Community link"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-11 14:23:48.394543",
+ "modified": "2026-02-07 17:10:26.248344",
  "modified_by": "Administrator",
  "module": "Website Customization",
  "name": "Website Customization Settings",
