@@ -38,7 +38,9 @@ def get_products_by_section():
 	for items in result.values():
 		items.sort(key=lambda x: x.get("custom_section_order") or 0)
 
-	return result
+	community_link = frappe.get_doc("Website Customization Settings").community_link
+
+	return result,{"whatsapp_community_link":community_link}
 
 
 @frappe.whitelist(allow_guest=True)
