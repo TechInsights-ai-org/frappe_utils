@@ -101,20 +101,38 @@ def get_products_with_stock(query_args=None,home_page=0):
 		)
 		items_in_process = {d.production_item for d in work_orders}
 
-		# Discontinued Status & Custom Fields
-		fields = ["item_code", "discontinued"]
-		if is_home_page:
-			fields.extend(["custom_section", "custom_section_order"])
-
-		# Fetch from Website Item. Assuming 1-to-1 mapping or we take the first one found.
-		# Note: get_product_filter_data items usually come from Website Item, so item_code is the link.
+		# Discontinued Status
 		wi_data = frappe.db.get_all(
 			"Website Item",
 			filters={"item_code": ["in", item_codes]},
-			fields=fields
+			fields=["name", "item_code", "discontinued"]
 		)
+		# Build map keyed by item_code for quick lookup
 		for d in wi_data:
 			discontinued_map[d.item_code] = d
+
+		# Fetch section assignments from the child table (one item may belong to multiple sections)
+		if is_home_page:
+			wi_names = [d.name for d in wi_data]
+			section_rows = frappe.db.sql(
+				"""
+				SELECT parent, section, `order`
+				FROM `tabSection reference`
+				WHERE parent IN %(parents)s
+				ORDER BY `order` ASC
+				""",
+				{"parents": wi_names},
+				as_dict=True
+			)
+			# Map wi_name -> list of {section, order}
+			section_map = {}
+			for row in section_rows:
+				section_map.setdefault(row.parent, []).append(
+					{"section": row.section, "order": row.order}
+				)
+			# Attach section list back to discontinued_map keyed by item_code
+			for d in wi_data:
+				d["sections"] = section_map.get(d.name, [])
 
 	valid_items = []
 	for item in data["items"]:
@@ -155,8 +173,8 @@ def get_products_with_stock(query_args=None,home_page=0):
 				stock_status = "In Process"
 			
 			if is_home_page:
-				item["custom_section"] = wi_item_data.get("custom_section")
-				item["custom_section_order"] = wi_item_data.get("custom_section_order")
+				# Attach the full list of section assignments; home.py will fan-out per section
+				item["sections"] = wi_item_data.get("sections") or []
 
 			item["total_quantity"] = actual_qty
 			item["stock_status"] = stock_status

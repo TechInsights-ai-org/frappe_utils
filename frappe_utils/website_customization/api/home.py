@@ -20,27 +20,51 @@ def get_products_by_section():
 	if not sections_data:
 		return {}
 
-	# Fetch items filtered by active sections
+	active_section_names = [s["section_name"] for s in sections_data]
+
+	# Fetch Website Item names that have at least one active section reference
+	wi_names_with_section = frappe.db.get_all(
+		"Section reference",
+		filters={"section": ["in", active_section_names]},
+		fields=["parent"],
+		pluck="parent"
+	)
+
+	if not wi_names_with_section:
+		community_link = frappe.get_doc("Website Customization Settings").community_link
+		return {}, {"whatsapp_community_link": community_link}
+
+	# Get item_codes for those Website Items so get_products_with_stock can filter
+	wi_item_codes = frappe.db.get_all(
+		"Website Item",
+		filters={"name": ["in", wi_names_with_section]},
+		pluck="item_code"
+	)
+
 	product_data = get_products_with_stock(
-		query_args={"field_filters": {"custom_section": [s["section_name"] for s in sections_data]}}, 
+		query_args={"field_filters": {"item_code": wi_item_codes}},
 		home_page=1
 	)
-	
-	# Group items by section (preserving section order from get_sections)
-	result = {s["section_name"]: [] for s in sections_data}
-	
-	for item in product_data.get("items", []) or []:
-		if section := item.get("custom_section"):
-			if section in result:
-				result[section].append(item)
 
-	# Sort items in each section by their specific order
+	# Group items by section, fanning out items that belong to multiple sections
+	result = {s["section_name"]: [] for s in sections_data}
+
+	for item in product_data.get("items", []) or []:
+		for sec in item.get("sections", []):
+			section_name = sec.get("section")
+			if section_name in result:
+				# Clone item dict so each section gets its own copy with the correct order
+				item_copy = dict(item)
+				item_copy["section_order"] = sec.get("order") or 0
+				result[section_name].append(item_copy)
+
+	# Sort items within each section by their section-specific order
 	for items in result.values():
-		items.sort(key=lambda x: x.get("custom_section_order") or 0)
+		items.sort(key=lambda x: x.get("section_order") or 0)
 
 	community_link = frappe.get_doc("Website Customization Settings").community_link
 
-	return result,{"whatsapp_community_link":community_link}
+	return result, {"whatsapp_community_link": community_link}
 
 
 @frappe.whitelist(allow_guest=True)
