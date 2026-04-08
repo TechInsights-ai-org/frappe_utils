@@ -26,7 +26,10 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/frappe_utils/css/frappe_utils.css"
-# app_include_js = "/assets/frappe_utils/js/frappe_utils.js"
+app_include_js = [
+    "/assets/frappe_utils/js/storage_upload.js",
+    "/assets/frappe_utils/js/secure_files.js"
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/frappe_utils/css/frappe_utils.css"
@@ -153,6 +156,12 @@ scheduler_events = {
 		"frappe_utils.tasks.daily_unpublish_job"
 	],
 }
+
+# External Storage Hooks
+# ----------------------
+# Intercept file writes and deletes for external storage routing
+write_file = "frappe_utils.services.upload_service.handle_write_file"
+delete_file_data_content = "frappe_utils.services.upload_service.handle_delete_file"
 
 # Testing
 # -------
