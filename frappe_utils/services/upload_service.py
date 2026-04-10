@@ -42,19 +42,30 @@ def get_storage_settings():
 		return None
 
 
-def is_external_storage_enabled(doctype: str = None) -> bool:
-	"""Check if external storage is enabled for the given doctype.
+def is_external_storage_enabled(doctype: str = None, fieldname: str = None) -> bool:
+	"""Check if external storage is enabled for the given doctype and fieldname.
 
 	Args:
 		doctype: The DocType to check. If None, only checks master toggle.
+		fieldname: Optional. Field name to check against explicit exclusion rules.
 
 	Returns:
 		True if external storage should be used for this doctype.
 	"""
+	# Hardcoded exclusions for Candidate Profile (requested by user)
+	if doctype == "Candidate Profile" and fieldname in ["qr", "profile_photo"]:
+		return False
+
 	settings = get_storage_settings()
 	if not settings or not settings.enable_external_storage:
-		frappe.log_error("Storage Config Check", "Settings not found or not enabled")
 		return False
+
+	# Check explicit field exclusions
+	if settings.exclusion_list and doctype and fieldname:
+		for rule in settings.exclusion_list:
+			if rule.doctype_name == doctype and rule.field_name == fieldname:
+				frappe.log_error("Storage Config Check", f"Field explicitly excluded from external storage: {doctype}.{fieldname}")
+				return False
 
 	# If no target doctypes specified, apply to all
 	if not settings.target_doctypes:
@@ -140,6 +151,12 @@ def _extract_object_key_from_url(file_url: str, settings=None) -> str | None:
 	Returns:
 		The object key if URL matches external storage, else None.
 	"""
+	if file_url and "download_secure?key=" in file_url:
+		return file_url.split("download_secure?key=")[-1]
+		
+	if file_url and file_url.startswith("https://s3.private/"):
+		return file_url[len("https://s3.private/"):]
+
 	if not settings:
 		settings = get_storage_settings()
 
@@ -175,11 +192,12 @@ def handle_write_file(file_doc) -> dict | None:
 	"""
 	doctype = file_doc.attached_to_doctype
 	docname = file_doc.attached_to_name
+	fieldname = file_doc.attached_to_field
 	
-	frappe.log_error("Storage Hook Triggered", f"handle_write_file called for file={file_doc.file_name}, doctype={doctype}, docname={docname}")
+	frappe.log_error("Storage Hook Triggered", f"handle_write_file called for file={file_doc.file_name}, doctype={doctype}, docname={docname}, fieldname={fieldname}")
 
 	# Check if external storage should handle this upload
-	if not is_external_storage_enabled(doctype):
+	if not is_external_storage_enabled(doctype, fieldname):
 		frappe.log_error("Storage Hook Action", f"External storage disabled for {doctype}, using local filesystem")
 		return file_doc.save_file_on_filesystem()
 
@@ -197,12 +215,14 @@ def handle_write_file(file_doc) -> dict | None:
 
 	try:
 		storage = get_storage_provider()
-		is_private = bool(file_doc.is_private)
+		is_private = False # Force all external uploads to be public
+		file_doc.is_private = 0
 		file_url = storage.upload_file(object_key, file_doc._content, content_type, is_private=is_private)
 
 		# For private files, store a virtual URL containing the object key.
 		if is_private:
-			file_url = f"https://s3.private/{object_key}"
+			from frappe.utils import get_url
+			file_url = get_url(f"/api/method/frappe_utils.api.upload.download_secure?key={object_key}")
 		file_doc.file_url = file_url
 
 		return {
@@ -231,18 +251,14 @@ def handle_delete_file(file_doc, only_thumbnail=False) -> None:
 
 	Args:
 		file_doc: The Frappe File document being deleted.
-		only_thumbnail: If True, only delete thumbnail (ignored for external).
+		only_thumbnail: If True, only delete thumbnail.
 	"""
-	if only_thumbnail:
-		# External storage doesn't handle thumbnails separately
-		file_doc.delete_file_from_filesystem(only_thumbnail=True)
-		return
-
 	settings = get_storage_settings()
 	object_key = _extract_object_key_from_url(file_doc.file_url, settings)
 
 	if object_key:
-		# This is an external file — delete from storage
+		# Direct uploads lack a content_hash, making Frappe pass only_thumbnail=True
+		# to protect against deduplication. External files are always unique per doc.
 		try:
 			storage = get_storage_provider()
 			storage.delete_file(object_key)
@@ -253,6 +269,10 @@ def handle_delete_file(file_doc, only_thumbnail=False) -> None:
 			)
 	else:
 		# Not an external file — use default filesystem deletion
+		if only_thumbnail:
+			file_doc.delete_file_from_filesystem(only_thumbnail=True)
+			return
+			
 		file_doc.delete_file_from_filesystem(only_thumbnail=False)
 
 
@@ -265,8 +285,9 @@ def handle_direct_upload_request(
 	docname: str,
 	filename: str,
 	content_type: str = None,
-	is_private: int = 1,
+	is_private: int = 0,
 	file_size: int = 0,
+	fieldname: str = None,
 ) -> dict:
 	"""Generate a pre-signed upload URL for direct client upload.
 
@@ -285,8 +306,8 @@ def handle_direct_upload_request(
 	if not settings or not settings.enable_external_storage or not settings.enable_direct_upload:
 		frappe.throw(_("Direct upload is not enabled"))
 
-	if not is_external_storage_enabled(doctype):
-		frappe.throw(_("External storage is not enabled for {0}").format(doctype))
+	if not is_external_storage_enabled(doctype, fieldname):
+		frappe.throw(_("External storage is not enabled for {0} field {1}").format(doctype, fieldname or ''))
 
 	# Validate
 	if file_size:
@@ -298,6 +319,7 @@ def handle_direct_upload_request(
 	if not content_type:
 		content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
 
+	is_private = 0 # force all external uploads to be public
 	object_key = generate_object_key(doctype, docname, filename)
 	storage = get_storage_provider()
 
@@ -309,7 +331,8 @@ def handle_direct_upload_request(
 	)
 	
 	if is_private:
-		file_url = f"https://s3.private/{object_key}"
+		from frappe.utils import get_url
+		file_url = get_url(f"/api/method/frappe_utils.api.upload.download_secure?key={object_key}")
 	else:
 		file_url = storage.get_file_url(object_key)
 
@@ -326,7 +349,7 @@ def confirm_upload(
 	doctype: str,
 	docname: str,
 	filename: str,
-	is_private: int = 1,
+	is_private: int = 0,
 ) -> dict:
 	"""Confirm that a direct upload completed successfully.
 
@@ -354,7 +377,8 @@ def confirm_upload(
 
 	# For private files, use virtual URL (consistent with handle_write_file)
 	if int(is_private):
-		file_url = f"https://s3.private/{object_key}"
+		from frappe.utils import get_url
+		file_url = get_url(f"/api/method/frappe_utils.api.upload.download_secure?key={object_key}")
 
 	# Determine folder
 	folder = f"Home/{doctype}" if doctype else "Home"
@@ -414,75 +438,82 @@ def confirm_upload(
 		raise
 
 def get_download_url_for_file(file_url: str) -> str:
-	"""Generate a presigned GET URL after verifying permissions.
+	"""Generate a secure proxy URL after verifying permissions.
 	
-	Args:
-		file_url: The URL or ID of the file. e.g., 'https://s3.private/some/bucket/key'
-		
-	Returns:
-		Temporary presigned URL or original URL if public.
-	"""
-	if not file_url.startswith("https://s3.private/"):
-		return file_url
-
-	object_key = file_url[len("https://s3.private/"):]
-	
-	# Find the exact File record to check permissions
-	file_names = frappe.get_all("File", filters={"file_url": file_url}, limit=1)
-	if not file_names:
-		frappe.throw(_("File not found globally"), frappe.DoesNotExistError)
-		
-	file_doc = frappe.get_doc("File", file_names[0].name)
-	
-	if file_doc.attached_to_doctype and file_doc.attached_to_name:
-		if not frappe.has_permission(file_doc.attached_to_doctype, "read", file_doc.attached_to_name):
-			frappe.throw(_("No permission to access this file"), frappe.PermissionError)
-			
-	storage = get_storage_provider()
-	return storage.generate_download_url(object_key, expires_in=600)
-
-
-def resolve_external_url(file_url: str, expires_in: int = 600) -> str:
-	"""Resolve an external storage URL to a pre-signed download URL.
-
-	Use this for server-side URL resolution in contexts where the client
-	cannot resolve URLs itself (e.g., guest-facing web pages rendered via Jinja).
-
-	Handles:
-	- Private virtual URLs (https://s3.private/<key>) → presigned GET URL
-	- Direct endpoint URLs (https://<endpoint>/<bucket>/<key>) → presigned GET URL
-	- Local/non-external URLs → returned as-is
-
-	Args:
-		file_url: The file URL stored in the database.
-		expires_in: Presigned URL expiry in seconds (default 600 = 10 min).
-
-	Returns:
-		A working, accessible URL string.
+	This hides S3 credentials from the caller and provides a stable
+	endpoint that never expires for authorized users.
 	"""
 	if not file_url:
 		return file_url
 
-	# Case 1: Private virtual URL
-	if file_url.startswith("https://s3.private/"):
+	settings = get_storage_settings()
+	object_key = _extract_object_key_from_url(file_url, settings)
+	
+	if not object_key:
+		return file_url # Local or non-external file
+
+	# Permission check
+	file_names = frappe.get_all("File", filters={"file_url": file_url}, fields=["name", "attached_to_doctype", "attached_to_name"], limit=1)
+	if not file_names:
+		frappe.throw(_("File not found globally"), frappe.DoesNotExistError)
+		
+	target = file_names[0]
+	if target.attached_to_doctype and target.attached_to_name:
+		if not frappe.has_permission(target.attached_to_doctype, "read", target.attached_to_name):
+			frappe.throw(_("No permission to access this file"), frappe.PermissionError)
+			
+	from frappe.utils import get_url
+	return get_url(f"/api/method/frappe_utils.api.upload.download_secure?key={object_key}")
+
+
+def resolve_external_url(file_url: str, expires_in: int = 3600) -> str:
+	"""Resolve an external storage URL to a time-limited pre-signed download URL.
+
+	Used for server-side URL resolution when rendering guest-facing pages
+	(e.g. candidate profiles via Jinja). Generates a fresh pre-signed S3 URL
+	that works for the duration of a typical page visit.
+
+	Handles:
+	- Secure proxy URLs (/api/.../download_secure?key=<key>)
+	- Private virtual URLs (https://s3.private/<key>)
+	- Direct endpoint URLs (https://<endpoint>/<bucket>/<key>)
+	- Local/non-external URLs → returned as-is
+
+	Args:
+		file_url: The file URL stored in the database.
+		expires_in: Pre-signed URL expiry in seconds (default 3600 = 1 hour).
+
+	Returns:
+		A working, time-limited download URL string.
+	"""
+	if not file_url:
+		return file_url
+
+	object_key = None
+
+	# Case 1: Secure proxy URL — extract the key
+	if "download_secure?key=" in file_url:
+		object_key = file_url.split("download_secure?key=")[-1]
+
+	# Case 2: Private virtual URL
+	elif file_url.startswith("https://s3.private/"):
 		object_key = file_url[len("https://s3.private/"):]
+
+	# Case 3: Direct external storage endpoint URL
+	else:
+		settings = get_storage_settings()
+		if settings:
+			object_key = _extract_object_key_from_url(file_url, settings)
+
+	if object_key:
 		try:
 			storage = get_storage_provider()
 			return storage.generate_download_url(object_key, expires_in=expires_in)
 		except Exception:
 			return file_url
 
-	# Case 2: Direct external storage endpoint URL
-	settings = get_storage_settings()
-	if settings:
-		object_key = _extract_object_key_from_url(file_url, settings)
-		if object_key:
-			try:
-				storage = get_storage_provider()
-				return storage.generate_download_url(object_key, expires_in=expires_in)
-			except Exception:
-				return file_url
-
-	# Case 3: Local or unrecognised URL — return as-is
+	# Case 4: Local or unrecognised URL — return as-is
 	return file_url
+
+
 

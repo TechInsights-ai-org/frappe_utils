@@ -14,34 +14,51 @@
 	frappe.ui.FileUploader = class DirectStorageUploader {
 		constructor(options) {
 			this.options = options;
+			this.uid = frappe.utils.get_random(10);
 
 			// Try to intercept upload for valid doctypes
 			this.initialize();
 		}
 
 		async initialize() {
-			const enabled = await this.check_direct_upload();
-			if (enabled) {
-				this.show_direct_uploader();
+			const status = await this.check_direct_upload();
+			if (status && status.enabled && status.direct_upload) {
+				this.show_direct_uploader(status);
 			} else {
-				// Fall back to the default Vue Uploader
+				// Fall back to the default Vue Uploader with limited options
+				this.options.disable_file_browser = true;
+				this.options.allow_take_photo = false;
+				this.options.allow_link = false;
+				
 				this.uploader = new OriginalFileUploader(this.options);
 			}
 		}
 
 		async check_direct_upload() {
 			const doctype = this.options.doctype;
-			if (!doctype) return false;
+			if (!doctype) return null;
+
+			const cache_key = this.options.fieldname ? `${doctype}:${this.options.fieldname}` : doctype;
+
+			frappe._direct_upload_cache = frappe._direct_upload_cache || {};
+			if (frappe._direct_upload_cache[cache_key] !== undefined) {
+				return frappe._direct_upload_cache[cache_key];
+			}
 
 			try {
 				const status = await frappe.xcall(
 					"frappe_utils.api.upload.check_external_storage_status",
-					{ doctype: doctype }
+					{ 
+						doctype: doctype,
+						fieldname: this.options.fieldname
+					}
 				);
-				return status.enabled && status.direct_upload;
+				frappe._direct_upload_cache[cache_key] = status;
+				return status;
 			} catch (e) {
-				console.warn("Wasabi direct upload check failed:", e);
-				return false;
+				console.warn("Direct upload check failed:", e);
+				frappe._direct_upload_cache[cache_key] = null;
+				return null;
 			}
 		}
 
@@ -54,25 +71,33 @@
 						fieldname: "file_html",
 						options: `
 							<div style="padding: 20px; border: 2px dashed var(--border-color); border-radius: 8px; text-align: center; background: var(--control-bg);">
-								<input type="file" id="direct-s3-file-input" style="max-width: 100%;" />
-								<div class="progress mt-4" style="display: none; height: 10px;" id="direct-s3-progress-container">
-									<div class="progress-bar progress-bar-success" id="direct-s3-progress" style="width: 0%; background-color: var(--green-500);"></div>
+								<input type="file" class="direct-storage-file-input" style="max-width: 100%;" />
+								<div class="progress mt-4 direct-storage-progress-container" style="display: none; height: 10px;">
+									<div class="progress-bar progress-bar-success direct-storage-progress" style="width: 0%; background-color: var(--green-500);"></div>
 								</div>
-								<div id="direct-s3-status" class="mt-2 text-muted" style="display:none;font-size:12px;"></div>
+								<div class="mt-2 text-muted direct-storage-status" style="display:none;font-size:12px;"></div>
 							</div>
 						`
 					}
 				],
-				primary_action_label: __("Upload securely to Wasabi"),
+				primary_action_label: __("Upload securely to Storage"),
 				primary_action: () => {
-					const input = document.getElementById("direct-s3-file-input");
-					if (input.files.length > 0) {
+					const input = this.dialog.$wrapper.find('.direct-storage-file-input').get(0);
+					if (input && input.files && input.files.length > 0) {
 						this.upload_file(input.files[0]);
 					} else {
 						frappe.show_alert({ message: __("Please select a file first"), indicator: "orange" });
 					}
 				}
 			});
+
+			this.dialog.onhide = () => {
+				setTimeout(() => {
+					if (this.dialog && this.dialog.$wrapper) {
+						this.dialog.$wrapper.remove();
+					}
+				}, 400);
+			};
 
 			this.dialog.show();
 		}
@@ -83,20 +108,21 @@
 			const filename = file.name;
 			const content_type = file.type || "application/octet-stream";
 			const file_size = file.size;
-			const is_private = this.options.is_private ? 1 : 0;
+			
+			const is_private = 0; // All external storage files are public for now
 
 			// UI Elements
 			const upload_btn = this.dialog.get_primary_btn();
-			const progress_container = document.getElementById("direct-s3-progress-container");
-			const progress_bar = document.getElementById("direct-s3-progress");
-			const status_text = document.getElementById("direct-s3-status");
+			const progress_container = this.dialog.$wrapper.find('.direct-storage-progress-container').get(0);
+			const progress_bar = this.dialog.$wrapper.find('.direct-storage-progress').get(0);
+			const status_text = this.dialog.$wrapper.find('.direct-storage-status').get(0);
 
-			upload_btn.prop("disabled", true);
-			progress_container.style.display = "flex";
-			status_text.style.display = "block";
+			if (upload_btn) upload_btn.prop("disabled", true);
+			if (progress_container) progress_container.style.display = "flex";
+			if (status_text) status_text.style.display = "block";
 
 			try {
-				status_text.innerText = "Requesting secure upload URL...";
+				if (status_text) status_text.innerText = "Requesting secure upload URL...";
 
 				// Step 1: Get pre-signed upload URL
 				const presigned = await frappe.xcall(
@@ -108,24 +134,25 @@
 						content_type,
 						is_private,
 						file_size,
+						fieldname: this.options.fieldname
 					}
 				);
 
-				status_text.innerText = "Uploading directly to object storage...";
+				if (status_text) status_text.innerText = "Uploading directly to object storage...";
 
-				// Step 2: Upload file directly to S3/Wasabi
+				// Step 2: Upload file directly
 				await this._upload_to_presigned_url(
 					presigned.upload_url,
 					file,
 					presigned.content_type,
 					is_private,
 					(percent) => {
-						progress_bar.style.width = percent + "%";
-						status_text.innerText = `Uploading... ${percent}%`;
+						if (progress_bar) progress_bar.style.width = percent + "%";
+						if (status_text) status_text.innerText = `Uploading... ${percent}%`;
 					}
 				);
 
-				status_text.innerText = "Confirming upload...";
+				if (status_text) status_text.innerText = "Confirming upload...";
 
 				// Step 3: Confirm upload and create File doc
 				const result = await frappe.xcall(
@@ -148,10 +175,12 @@
 				}
 
 			} catch (error) {
-				upload_btn.prop("disabled", false);
-				progress_bar.classList.add("progress-bar-danger");
-				status_text.innerText = "Upload failed.";
-				status_text.style.color = "var(--red-500)";
+				if (upload_btn) upload_btn.prop("disabled", false);
+				if (progress_bar) progress_bar.classList.add("progress-bar-danger");
+				if (status_text) {
+					status_text.innerText = "Upload failed.";
+					status_text.style.color = "var(--red-500)";
+				}
 
 				frappe.msgprint({
 					title: __("Remote Upload Failed"),
@@ -167,8 +196,11 @@
 
 				xhr.open("PUT", upload_url, true);
 
-				// Critical headers. Adding these correctly is required by S3/Wasabi.
+				// Critical headers. Adding these correctly is required by S3 providers.
 				xhr.setRequestHeader("Content-Type", content_type);
+				if (!is_private) {
+					xhr.setRequestHeader("x-amz-acl", "public-read");
+				}
 
 				xhr.upload.onprogress = (e) => {
 					if (e.lengthComputable) {
@@ -186,7 +218,7 @@
 				};
 
 				xhr.onerror = () => {
-					reject(new Error("Network error during file upload. Check Wasabi bucket CORS policy."));
+					reject(new Error("Network error during file upload. Check storage bucket CORS policy."));
 				};
 
 				xhr.ontimeout = () => {

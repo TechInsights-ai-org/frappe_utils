@@ -43,6 +43,8 @@ class S3Storage(BaseStorage):
 		extra_args = {}
 		if content_type:
 			extra_args["ContentType"] = content_type
+		if not is_private:
+			extra_args["ACL"] = "public-read"
 
 		self.client.put_object(
 			Bucket=self.bucket_name,
@@ -60,6 +62,8 @@ class S3Storage(BaseStorage):
 		}
 		if content_type:
 			params["ContentType"] = content_type
+		if not is_private:
+			params["ACL"] = "public-read"
 
 		return self.client.generate_presigned_url(
 			"put_object",
