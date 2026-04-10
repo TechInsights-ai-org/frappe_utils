@@ -29,7 +29,7 @@
 				this.options.disable_file_browser = true;
 				this.options.allow_take_photo = false;
 				this.options.allow_link = false;
-				
+
 				this.uploader = new OriginalFileUploader(this.options);
 			}
 		}
@@ -48,7 +48,7 @@
 			try {
 				const status = await frappe.xcall(
 					"frappe_utils.api.upload.check_external_storage_status",
-					{ 
+					{
 						doctype: doctype,
 						fieldname: this.options.fieldname
 					}
@@ -108,7 +108,7 @@
 			const filename = file.name;
 			const content_type = file.type || "application/octet-stream";
 			const file_size = file.size;
-			
+
 			const is_private = 0; // All external storage files are public for now
 
 			// UI Elements
@@ -181,11 +181,15 @@
 					status_text.innerText = "Upload failed.";
 					status_text.style.color = "var(--red-500)";
 				}
-
-				frappe.msgprint({
-					title: __("Remote Upload Failed"),
-					message: error.message || __("Failed to upload file to external storage. Please check CORS settings."),
-					indicator: "red",
+				frappe.call({
+					method: "frappe.client.insert",
+					args: {
+						doc: {
+							"doctype": "Error Log",
+							"method": "Remote Upload Failed",
+							"error": String(error.message)
+						}
+					}
 				});
 			}
 		}

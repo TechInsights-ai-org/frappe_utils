@@ -184,7 +184,7 @@ def get_download_url(file_url: str) -> str:
 _MEDIA_CACHE_MAX_AGE = 3600  # 1 hour
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def serve_media(key: str):
 	"""Guest-accessible media proxy — fetches from S3 and serves inline.
 
