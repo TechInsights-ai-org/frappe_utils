@@ -1,0 +1,183 @@
+{
+ "actions": [],
+ "creation": "2026-04-06 00:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sb_general",
+  "storage_provider",
+  "enable_external_storage",
+  "enable_direct_upload",
+  "default_private",
+  "cb_credentials",
+  "access_key",
+  "secret_key",
+  "sb_storage",
+  "bucket_name",
+  "endpoint_url",
+  "cb_storage",
+  "region",
+  "sb_routing",
+  "target_doctypes",
+  "exclusion_list",
+  "sb_validation",
+  "max_file_size_mb",
+  "cb_validation",
+  "allowed_file_types"
+ ],
+ "fields": [
+  {
+   "fieldname": "sb_general",
+   "fieldtype": "Section Break",
+   "label": "General Settings"
+  },
+  {
+   "default": "S3",
+   "fieldname": "storage_provider",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Storage Provider",
+   "options": "S3",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_external_storage",
+   "fieldtype": "Check",
+   "label": "Enable External Storage",
+   "description": "Master toggle to enable/disable external file storage"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enable_external_storage",
+   "fieldname": "enable_direct_upload",
+   "fieldtype": "Check",
+   "label": "Enable Direct Upload",
+   "description": "If enabled, clients upload directly to storage using pre-signed URLs"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enable_external_storage",
+   "fieldname": "default_private",
+   "fieldtype": "Check",
+   "label": "Default Private Upload",
+   "description": "If enabled, all new uploads via external storage will default to private."
+  },
+  {
+   "fieldname": "cb_credentials",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.enable_external_storage",
+   "fieldname": "access_key",
+   "fieldtype": "Data",
+   "label": "Access Key",
+   "mandatory_depends_on": "eval:doc.enable_external_storage"
+  },
+  {
+   "depends_on": "eval:doc.enable_external_storage",
+   "fieldname": "secret_key",
+   "fieldtype": "Password",
+   "label": "Secret Key",
+   "mandatory_depends_on": "eval:doc.enable_external_storage"
+  },
+  {
+   "fieldname": "sb_storage",
+   "fieldtype": "Section Break",
+   "label": "Storage Configuration",
+   "depends_on": "eval:doc.enable_external_storage"
+  },
+  {
+   "fieldname": "bucket_name",
+   "fieldtype": "Data",
+   "label": "Bucket Name",
+   "mandatory_depends_on": "eval:doc.enable_external_storage"
+  },
+  {
+   "fieldname": "endpoint_url",
+   "fieldtype": "Data",
+   "label": "Endpoint URL",
+   "mandatory_depends_on": "eval:doc.enable_external_storage",
+   "description": "e.g. https://s3.wasabisys.com"
+  },
+  {
+   "fieldname": "cb_storage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "region",
+   "fieldtype": "Data",
+   "label": "Region",
+   "description": "e.g. us-east-1"
+  },
+  {
+   "fieldname": "sb_routing",
+   "fieldtype": "Section Break",
+   "label": "DocType Routing",
+   "depends_on": "eval:doc.enable_external_storage",
+   "description": "Only files attached to these DocTypes will use external storage. Leave empty to apply to all DocTypes."
+  },
+  {
+   "fieldname": "target_doctypes",
+   "fieldtype": "Table",
+   "label": "Target DocTypes",
+   "options": "Storage Target DocType"
+  },
+  {
+   "fieldname": "exclusion_list",
+   "fieldtype": "Table",
+   "label": "Field Exclusions",
+   "options": "Storage Field Exclusion",
+   "description": "Files uploaded to these specific doctype/fieldname combinations will be forced into local storage instead of external storage."
+  },
+  {
+   "fieldname": "sb_validation",
+   "fieldtype": "Section Break",
+   "label": "Validation Rules",
+   "depends_on": "eval:doc.enable_external_storage",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "max_file_size_mb",
+   "fieldtype": "Float",
+   "label": "Max File Size (MB)",
+   "description": "Maximum allowed file size in MB. Leave empty for no limit."
+  },
+  {
+   "fieldname": "cb_validation",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "allowed_file_types",
+   "fieldtype": "Small Text",
+   "label": "Allowed File Types",
+   "description": "Comma-separated file extensions (e.g. pdf,jpg,png,docx). Leave empty for no restriction."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-04-06 00:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Storage",
+ "name": "Storage Control",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
