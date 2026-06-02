@@ -12,30 +12,26 @@ def get_financial_info(customer: str):
         raise ValueError("Customer is required")
 
     # 1) Get credit limits per company
-    credit_limits = frappe.db.sql("""
-        SELECT
-            company,
-            SUM(credit_limit) AS credit_limit
-        FROM `tabCustomer Credit Limit`
-        WHERE parent = %s
-        GROUP BY company
-    """, customer, as_dict=1)
-
-    cl_map = {d.company: flt(d.credit_limit) for d in credit_limits}
+    credit_limit_rows = frappe.get_list(
+        "Customer Credit Limit",
+        filters={"parent": customer},
+        fields=["company", "credit_limit"],
+        limit=0
+    )
+    cl_map = {}
+    for r in credit_limit_rows:
+        cl_map[r.company] = cl_map.get(r.company, 0) + flt(r.credit_limit)
 
     # 2) Get outstanding amounts per company
-    outstanding = frappe.db.sql("""
-        SELECT
-            si.company,
-            SUM(IFNULL(si.outstanding_amount, 0)) AS outstanding
-        FROM `tabSales Invoice` si
-        WHERE
-            si.customer = %s
-            AND si.docstatus = 1
-        GROUP BY si.company
-    """, customer, as_dict=1)
-
-    out_map = {d.company: flt(d.outstanding) for d in outstanding}
+    invoice_rows = frappe.get_list(
+        "Sales Invoice",
+        filters={"customer": customer, "docstatus": 1},
+        fields=["company", "outstanding_amount"],
+        limit=0
+    )
+    out_map = {}
+    for r in invoice_rows:
+        out_map[r.company] = out_map.get(r.company, 0) + flt(r.outstanding_amount)
 
     # 3) Build result list
     results = []
