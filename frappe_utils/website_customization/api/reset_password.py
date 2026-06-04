@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from frappe.utils import validate_email_address
 from frappe.core.doctype.user.user import reset_password
 
@@ -15,10 +16,12 @@ def reset(identifier=None):
         SELECT `name`, `email`
         FROM `tabUser`
         WHERE
-            LOWER(`username`) = %s
-            OR LOWER(`email`) = %s
-            OR LOWER(IFNULL(`phone`, '')) = %s
-            AND `enabled` = 1
+            `enabled` = 1
+            AND (
+                LOWER(`username`) = %s
+                OR LOWER(`email`) = %s
+                OR LOWER(IFNULL(`phone`, '')) = %s
+            )
         LIMIT 1
         """,
         (identifier, identifier, identifier),
