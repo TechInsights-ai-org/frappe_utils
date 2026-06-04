@@ -40,7 +40,7 @@ def get_products_by_section():
 
 	community_link = frappe.get_doc("Website Customization Settings").community_link
 
-	return result,{"whatsapp_community_link":community_link}
+	return {"sections": result, "whatsapp_community_link": community_link}
 
 
 @frappe.whitelist(allow_guest=True)
