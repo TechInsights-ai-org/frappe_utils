@@ -14,10 +14,11 @@ def remove(item_code):
 
 
 @frappe.whitelist()
-def get_wishlist(user, page=1, limit=10):
-    """Get paginated wishlist items with stock information for a user."""
+def get_wishlist(page=1, limit=10):
+    """Get paginated wishlist items with stock information for the current user."""
+    user = frappe.session.user
     page = int(page)
-    limit = int(limit)  
+    limit = int(limit)
     offset = (page - 1) * limit
     query = """
         SELECT item_code
