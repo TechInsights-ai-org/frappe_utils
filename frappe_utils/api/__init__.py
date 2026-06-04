@@ -216,13 +216,12 @@ def get_product_info(item_code):
 
 	rating_data = frappe.db.get_all("Item Review",
 		filters={"website_item": item_code},
-		fields=["avg(rating) as avg_rating", "count(name) as total"],
+		fields=["avg(rating * 5) as avg_rating", "count(name) as total"],
 		as_list=False, ignore_permissions=True
 	)
 
 	if rating_data:
-		db_rating = rating_data[0].get("avg_rating") or 0.0
-		item["avg_rating"] = db_rating * 5
+		item["avg_rating"] = rating_data[0].get("avg_rating") or 0.0
 		item["review_count"] = rating_data[0].get("total") or 0
 	else:
 		item["avg_rating"] = 0.0
