@@ -504,7 +504,10 @@ def place_order(quotation_name, address_name=None):
 	if quotation.docstatus != 0:
 		frappe.throw("Quotation must be in Draft status")
 
+	sp = "place_order"
 	try:
+		frappe.db.savepoint(sp)
+
 		quotation.submit()
 
 		from frappe.model.mapper import get_mapped_doc
@@ -595,7 +598,7 @@ def place_order(quotation_name, address_name=None):
 
 		sales_invoice.insert(ignore_permissions=True)
 
-		frappe.db.commit()
+		frappe.db.release_savepoint(sp)
 
 		return {
 			"sales_order": sales_order.name,
@@ -605,5 +608,5 @@ def place_order(quotation_name, address_name=None):
 		}
 
 	except Exception as e:
-		frappe.db.rollback()
+		frappe.db.rollback(save_point=sp)
 		frappe.throw(f"Failed to place order: {str(e)}")
