@@ -1,5 +1,6 @@
 import frappe
 from frappe.utils import flt
+from frappe_utils.api import _get_customer_from_user
 
 @frappe.whitelist()
 def get_financial_info(customer: str):
@@ -11,23 +12,26 @@ def get_financial_info(customer: str):
     if not customer:
         raise ValueError("Customer is required")
 
+    if customer != _get_customer_from_user():
+        frappe.throw("Not permitted")
+
     # 1) Get credit limits per company
-    credit_limit_rows = frappe.get_list(
+    credit_limit_rows = frappe.get_all(
         "Customer Credit Limit",
         filters={"parent": customer},
         fields=["company", "credit_limit"],
-        limit=0
+        limit=0,
     )
     cl_map = {}
     for r in credit_limit_rows:
         cl_map[r.company] = cl_map.get(r.company, 0) + flt(r.credit_limit)
 
     # 2) Get outstanding amounts per company
-    invoice_rows = frappe.get_list(
+    invoice_rows = frappe.get_all(
         "Sales Invoice",
         filters={"customer": customer, "docstatus": 1},
         fields=["company", "outstanding_amount"],
-        limit=0
+        limit=0,
     )
     out_map = {}
     for r in invoice_rows:
