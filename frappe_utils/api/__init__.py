@@ -511,6 +511,16 @@ def get_current_quotation():
 
 		quotation = frappe.get_doc("Quotation", quotation_name)
 
+		item_codes = [item.item_code for item in quotation.items]
+		image_map = {}
+		if item_codes:
+			wi_rows = frappe.get_all(
+				"Website Item",
+				filters={"item_code": ["in", item_codes]},
+				fields=["item_code", "website_image"],
+			)
+			image_map = {r.item_code: r.website_image for r in wi_rows}
+
 		return {
 			"quotation": quotation.name,
 			"grand_total": quotation.grand_total,
@@ -523,7 +533,8 @@ def get_current_quotation():
 				"item_name": item.item_name,
 				"qty": item.qty,
 				"rate": item.rate,
-				"amount": item.amount
+				"amount": item.amount,
+				"website_image": image_map.get(item.item_code),
 			} for item in quotation.items]
 		}
 	except Exception as e:
