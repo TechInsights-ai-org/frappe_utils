@@ -346,12 +346,23 @@ def sync_cart_to_quotation(items):
 			"transaction_date": frappe.utils.nowdate()
 		})
 
+	price_list = frappe.db.get_single_value("Webshop Settings", "price_list") or "Standard Selling"
+
 	for item in items:
+		item_code = item.get("item_code")
+		rate = (
+			frappe.db.get_value(
+				"Item Price",
+				{"item_code": item_code, "price_list": price_list},
+				"price_list_rate",
+			)
+			or 0.0
+		)
 		quotation.append("items", {
-			"item_code": item.get("item_code"),
+			"item_code": item_code,
 			"qty": item.get("qty", 1),
-			"rate": item.get("rate", 0.0),
-			"delivery_date": frappe.utils.add_days(frappe.utils.nowdate(), 7)
+			"rate": rate,
+			"delivery_date": frappe.utils.add_days(frappe.utils.nowdate(), 7),
 		})
 
 	if existing_quotation:
@@ -366,6 +377,39 @@ def sync_cart_to_quotation(items):
 		"grand_total": quotation.grand_total,
 		"total_qty": sum([item.qty for item in quotation.items]),
 		"message": "Cart synced successfully"
+	}
+
+
+@frappe.whitelist()
+def apply_coupon_code(coupon_code):
+	"""Validate a promo code and apply it to the current user's cart quotation."""
+	customer = _get_customer_from_user()
+
+	quotation_name = frappe.db.get_value(
+		"Quotation",
+		{"party_name": customer, "docstatus": 0, "source": "Website"},
+		"name",
+		order_by="modified desc",
+	)
+	if not quotation_name:
+		frappe.throw("No active cart found. Add items to your cart first.")
+
+	coupon_name = frappe.db.get_value("Coupon Code", {"coupon_code": coupon_code}, "name")
+	if not coupon_name:
+		frappe.throw("Invalid promo code.")
+
+	from erpnext.accounts.doctype.pricing_rule.utils import validate_coupon_code
+	validate_coupon_code(coupon_name)
+
+	quotation = frappe.get_doc("Quotation", quotation_name)
+	quotation.coupon_code = coupon_name
+	quotation.ignore_pricing_rule = 0
+	quotation.save(ignore_permissions=True)
+
+	return {
+		"grand_total": quotation.grand_total,
+		"discount_amount": quotation.discount_amount or 0.0,
+		"message": "Promo code applied!",
 	}
 
 
