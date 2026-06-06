@@ -26,7 +26,13 @@ def get_product_filters(item_group=None):
 		item_group = None
 
 	filter_engine = ProductFiltersBuilder()
-	filters["field_filters"] = filter_engine.get_field_filters()
+
+	raw_field_filters = filter_engine.get_field_filters() or []
+	filters["field_filters"] = [
+		[{"fieldname": df.fieldname, "label": df.label}, values]
+		for df, values in raw_field_filters
+	]
+
 	filters["attribute_filters"] = filter_engine.get_attribute_filters()
 
 	sub_categories = []
@@ -148,6 +154,96 @@ def get_products_with_stock(query_args=None,home_page=0):
 
 	data["items"] = valid_items
 	return data
+
+
+@frappe.whitelist(allow_guest=True)
+def get_related_products(item_code, limit=4):
+	"""
+	Return up to `limit` published products in the same item_group as `item_code`
+	(a Website Item name). Fetches exactly what is needed — no full-catalog scan.
+	"""
+	if "webshop" not in frappe.get_installed_apps():
+		return []
+
+	from webshop.webshop.utils.product import get_web_item_qty_in_stock
+
+	limit = cint(limit) or 4
+
+	item_group = frappe.db.get_value("Website Item", item_code, "item_group")
+
+	filters = {"published": 1, "name": ("!=", item_code)}
+	if item_group:
+		filters["item_group"] = item_group
+
+	# Fetch a small buffer so discontinued items don't leave us short.
+	ws_items = frappe.db.get_all(
+		"Website Item",
+		filters=filters,
+		fields=["name", "web_item_name", "item_name", "item_code", "website_image",
+				"item_group", "short_description", "route", "ranking", "on_backorder",
+				"discontinued"],
+		order_by="ranking desc",
+		limit=limit * 2,
+	)
+
+	if not ws_items:
+		return []
+
+	real_codes = [i.item_code for i in ws_items]
+
+	price_list = frappe.db.get_single_value("Webshop Settings", "price_list") or "Standard Selling"
+	prices = frappe.db.get_all(
+		"Item Price",
+		filters={"item_code": ["in", real_codes], "price_list": price_list},
+		fields=["item_code", "price_list_rate"],
+	)
+	price_map = {p.item_code: p.price_list_rate for p in prices}
+
+	results = []
+	for ws_item in ws_items:
+		if len(results) >= limit:
+			break
+
+		real_code = ws_item.item_code
+		stock_data = get_web_item_qty_in_stock(real_code, "website_warehouse") or {}
+
+		actual_qty = flt(stock_data.get("stock_qty", 0.0))
+		is_stock_item = stock_data.get("is_stock_item", 0)
+
+		if ws_item.discontinued and actual_qty <= 0:
+			continue
+
+		if not is_stock_item:
+			stock_status = "In Stock"
+		elif actual_qty > 0:
+			stock_status = "In Stock"
+		else:
+			stock_status = "Out of Stock"
+
+		results.append({
+			"name": ws_item.name,
+			"web_item_name": ws_item.web_item_name,
+			"item_name": ws_item.item_name,
+			"item_code": real_code,
+			"website_image": ws_item.website_image,
+			"item_group": ws_item.item_group,
+			"short_description": ws_item.short_description,
+			"route": ws_item.route,
+			"ranking": ws_item.ranking,
+			"on_backorder": ws_item.on_backorder,
+			"price_list_rate": price_map.get(real_code, 0.0),
+			"discount_percent": None,
+			"total_quantity": actual_qty,
+			"stock_qty": actual_qty,
+			"stock_status": stock_status,
+			"in_stock": actual_qty > 0 or not is_stock_item,
+			"in_cart": False,
+			"wished": False,
+			"avg_rating": 0,
+			"review_count": 0,
+		})
+
+	return results
 
 
 @frappe.whitelist(allow_guest=True)
