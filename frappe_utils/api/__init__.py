@@ -330,19 +330,27 @@ def get_product_info(item_code):
 		if frappe.db.exists("Wishlist Item", {"parent": frappe.session.user, "item_code": real_item_code}):
 			item["wished"] = 1
 
-	item["website_specifications"] = frappe.db.get_all(
-		"Item Website Specification",
-		filters={'parent': item_code},
-		fields=['idx','label','custom_value']
-	)
-	slideshow = item.slideshow
-	item['slideshow_list'] = []
-	if slideshow:
-		item['slideshow_list']=frappe.db.get_all(
-			"Website Slideshow Item",
-			filters={'parent': slideshow},
-			fields=['idx', 'image', 'custom_render_video']
+	try:
+		item["website_specifications"] = frappe.db.get_all(
+			"Item Website Specification",
+			filters={"parent": item_code},
+			fields=["idx", "label", "custom_value"],
 		)
+	except Exception:
+		frappe.log_error("get_product_info: website_specifications query failed")
+		item["website_specifications"] = []
+
+	slideshow = item.slideshow
+	item["slideshow_list"] = []
+	if slideshow:
+		try:
+			item["slideshow_list"] = frappe.db.get_all(
+				"Website Slideshow Item",
+				filters={"parent": slideshow},
+				fields=["idx", "image", "custom_render_video"],
+			)
+		except Exception:
+			frappe.log_error("get_product_info: slideshow query failed")
 
 	return item
 

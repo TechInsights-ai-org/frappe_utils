@@ -62,17 +62,36 @@ def register(businessName, contactName, email, phone, password, gst=None, accept
 			if pu.user == user.name:
 				user_linked = True
 				break
-		
+
 		if not user_linked:
 			customer.append("portal_users", {
 				"user": user.name
 			})
 			customer.save(ignore_permissions=True)
 
+		# 3. Create Contact linked to User and Customer
+		# _get_customer_from_user() resolves Customer via Contact.user → Dynamic Link,
+		# so without this record every cart/checkout/address call throws.
+		if not frappe.db.exists("Contact", {"user": email}):
+			contact = frappe.new_doc("Contact")
+			contact.first_name = user.first_name
+			contact.last_name = user.last_name or ""
+			contact.user = email
+			contact.company_name = businessName
+
+			contact.append("email_ids", {"email_id": email, "is_primary": 1})
+
+			if phone:
+				contact.append("phone_nos", {"phone": phone, "is_primary_mobile_no": 1})
+
+			contact.append("links", {"link_doctype": "Customer", "link_name": customer.name})
+
+			contact.save(ignore_permissions=True)
+
 		frappe.db.commit()
-		
+
 		return {
-			"status": "success", 
+			"status": "success",
 			"message": _("Registration successful"),
 			"user": user.name,
 			"customer": customer.name

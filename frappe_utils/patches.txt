@@ -8,3 +8,4 @@ frappe_utils.patches.add_discontinued_field
 frappe_utils.patches.setup_home_sections
 frappe_utils.patches.setup_shop_by_category
 frappe_utils.patches.remove_custom_todo_field
+frappe_utils.patches.create_missing_contacts
